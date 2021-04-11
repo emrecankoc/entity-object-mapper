@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env ts-node-script
 
 import {
   DataSourceReverser,
@@ -194,12 +194,18 @@ function runQuestion() {
               })),
             });
 
+            const packageName = await prompts({
+              type: "text",
+              name: "packageName",
+              message: "Package name",
+            });
+
             await objectReverser.generateAndExport(
               schemaSelect.schema,
               tableSelect.tableName,
               directorySelection.templatedir,
               templateSelect.templateName,
-              "",
+              packageName.packageName,
               process.cwd()
             );
             console.info("execution done...");

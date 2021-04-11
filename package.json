@@ -8,7 +8,7 @@
     "start": "ts-node ./bin/cli.ts"
   },
   "bin": {
-    "entity-object-mapper": "./bin/cli.ts"
+    "entity-object-mapper": "bin/cli"
   },
   "keywords": [
     "entity",
@@ -38,5 +38,4 @@
   "engines": {
     "node": ">=11.0"
   }
-  
 }
