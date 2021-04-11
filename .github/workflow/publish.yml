@@ -1,0 +1,25 @@
+name: publish
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "10.x"
+          registry-url: "https://registry.npmjs.org"
+      - name: install dependencies
+        run: npm install
+      #- name: tests
+      #  run: npm run test
+      - name: build
+        run: npm run build
+      - name: publish
+        run: npm publish --tag ${GITHUB_REF#refs/tags/v}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGE_REGISTRY_TOKEN }}
