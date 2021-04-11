@@ -22,6 +22,6 @@ jobs:
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGE_REGISTRY_TOKEN }}
     - run: |
-        git add package.json package-lock.json
+        git add -A
         git commit -m "version update"
         git push
