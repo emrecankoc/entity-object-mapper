@@ -13,6 +13,10 @@ jobs:
         node-version: '12.x'
         registry-url: 'https://registry.npmjs.org'
     - run: npm install
+    - run: |
+        git config --global user.name ${{github.event.pusher.name}}
+        git config --global user.email ${{github.event.pusher.email}}
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
     - run: npm version ${GITHUB_REF#refs/tags/v}
     - run: npm publish
       env:
