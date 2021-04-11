@@ -17,8 +17,11 @@ jobs:
         git config --global user.name ${{ github.actor }}
         git config --global user.email ${{ github.actor }}@users.noreply.github.com
         git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-    - run: npm version ${GITHUB_REF#refs/tags/v}
+    - run: npm version ${GITHUB_REF#refs/tags/v} --no-git-tag-version
     - run: npm publish
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGE_REGISTRY_TOKEN }}
-    - run: git push
+    - run: |
+        git add -A
+        git commit -m "version update ${GITHUB_REF#refs/tags/v}"
+        git push
