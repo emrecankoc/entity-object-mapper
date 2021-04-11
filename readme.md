@@ -30,5 +30,3 @@ objectReverser.generateAndExport("schema_name","table_name","template_directory"
 ## License
 
 MIT © [emrecankoc](https://github.com/emrecankoc)
-
-PS: Project template based on [create-react-library](https://github.com/transitive-bullshit/create-react-library)
