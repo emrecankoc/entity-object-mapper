@@ -199,7 +199,7 @@ function runQuestion() {
               tableSelect.tableName,
               directorySelection.templatedir,
               templateSelect.templateName,
-              "io.github.emrecankoc",
+              "",
               process.cwd()
             );
             console.info("execution done...");
