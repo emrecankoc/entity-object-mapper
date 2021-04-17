@@ -1,13 +1,20 @@
 
-# ENTITY-OBJECT-MAPPER
+# Entity-Object-Mapper
 
-Entity-object-mapper gathers table information from database then generates code with ejs templates. 
+Entity-object-mapper is a code generator. Its fetches table and schema defintions from database and generates data access objects from it.
 
-Postgres and mysql supported as datasource.
+-   Postgres and mysql supported as datasource.
+-   Can be extended with EJS templates.
 
-## Install
+## How To Install
 
+```
+npm install entity-object-mapper --save
 
+or
+
+yarn add entity-object-mapper
+```
 
 ## Usage
 
@@ -25,6 +32,12 @@ const objectReverser = new entityMapper.DataSourceReverser("postgres", {
         });
 objectReverser.generateAndExport("schema_name","table_name","template_directory","template_name", "package_name","output_dir");
             
+```
+
+## CLI
+
+```
+npx entity-object-mapper
 ```
 
 ## License
