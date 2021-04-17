@@ -44,4 +44,6 @@ npx entity-object-mapper
 
 ## License
 
+Feel free to contribute
+
 MIT © [emrecankoc](https://github.com/emrecankoc)
