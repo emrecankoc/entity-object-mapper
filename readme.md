@@ -36,6 +36,8 @@ objectReverser.generateAndExport("schema_name","table_name","template_directory"
 
 ## CLI
 
+You can use cli app with npx.
+
 ```
 npx entity-object-mapper
 ```
