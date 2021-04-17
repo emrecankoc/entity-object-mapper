@@ -28,3 +28,4 @@ jobs:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGE_REGISTRY_TOKEN }}
     - run: |
         git push
+        git push --tags

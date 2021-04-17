@@ -3,7 +3,6 @@ import mysql from "mysql";
 import {
   convertToCamelCase,
   convertToPascalCase,
-  getLanguageSpecificTypeDefinition,
 } from "./utility";
 
 export type DataSource = "postgres" | "mysql";
@@ -22,14 +21,27 @@ export type QueryResult = {
   hasRows: boolean;
 };
 
-export type ColumnInfo = {
+export class ColumnInfo {
   name: string;
   camelCaseName: string;
   pascalCaseName: string;
   defaultValue: string;
   type: string;
-  isPrimaryKey: number;
-};
+  isPrimaryKey: boolean;
+  constructor(
+    name: string,
+    defaultValue: string,
+    type: string,
+    isPrimaryKey: boolean
+  ) {
+    this.name = name;
+    this.defaultValue = defaultValue;
+    this.type = type;
+    this.isPrimaryKey = isPrimaryKey;
+    this.camelCaseName = convertToCamelCase(name);
+    this.pascalCaseName = convertToPascalCase(name);
+  }
+}
 
 export type TableInfo = {
   schema: string;
@@ -39,8 +51,6 @@ export type TableInfo = {
 
 export interface IDatabaseEngine {
   runSingleQuery(query: string, values?: any[]): Promise<QueryResult>;
-  getSchemaList(): Promise<string[]>;
-  getTableList(schema: string): Promise<string[]>;
   getTableInfo(schema: string, tableName: string): Promise<TableInfo>;
   close(): void;
 }
@@ -69,11 +79,11 @@ WHERE COLS.TABLE_SCHEMA = $1
 `;
 
 const QUERY_MYSQL_TABLE_INFO = `
-SELECT COLS.COLUMN_NAME,
-	COLS.COLUMN_DEFAULT,
-	COLS.IS_NULLABLE,
-	COLS.DATA_TYPE,
-	COALESCE(CONS.IS_PRIMARY_KEY,0) AS IS_PRIMARY_KEY
+SELECT COLS.column_name,
+	COLS.column_default,
+	COLS.is_nullable,
+	COLS.data_type,
+	COALESCE(CONS.IS_PRIMARY_KEY,0) AS ,s_primary_key
 FROM INFORMATION_SCHEMA.COLUMNS COLS
 LEFT JOIN
 				(SELECT TC.TABLE_SCHEMA,
@@ -100,8 +110,8 @@ class PostgressWrapper implements IDatabaseEngine {
       database: options.database,
       port: options.port,
       host: options.host,
-      query_timeout: 10000, //10 second
-      connectionTimeoutMillis: 30000, // 30 second
+      query_timeout: 30000, //30 second
+      connectionTimeoutMillis: 60000, // 30 second
     });
   }
   runSingleQuery(query: string, values?: any[]): Promise<QueryResult> {
@@ -110,51 +120,18 @@ class PostgressWrapper implements IDatabaseEngine {
       rows: result.rows,
     }));
   }
-  getSchemaList(): Promise<string[]> {
-    return this.runSingleQuery(
-      "SELECT T.SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA T"
-    ).then((result) => {
-      if (result.hasRows) {
-        return result.rows?.map((it) => <string>it["schema_name"]);
-      }
-      throw new Error("No schema found.");
-    });
-  }
-  getTableList(schema: string): Promise<string[]> {
-    return this.runSingleQuery(
-      "SELECT T.TABLE_NAME FROM INFORMATION_SCHEMA.TABLES T WHERE T.TABLE_SCHEMA = $1",
-      [schema]
-    ).then((result) => {
-      if (result.hasRows) {
-        return result.rows?.map((it) => <string>it["table_name"]);
-      }
-      throw new Error(`No table found in schema ${schema}`);
-    });
-  }
   getTableInfo(schema: string, tableName: string): Promise<TableInfo> {
     return this.runSingleQuery(QUERY_POSTGRES_TABLE_INFO, [
       schema,
       tableName,
     ]).then((result) => {
-      if (result.hasRows) {
-        const columns = result.rows.map((it) => ({
-          name: <string>it["column_name"],
-          camelCaseName: convertToCamelCase(<string>it["column_name"]),
-          pascalCaseName: convertToPascalCase(<string>it["column_name"]),
-          defaultValue: <string>it["column_default"],
-          type: getLanguageSpecificTypeDefinition(
-            <string>it["data_type"],
-            "java"
-          ),
-          isPrimaryKey: <number>it["is_primary_key"],
-        }));
-        return {
-          schema,
-          tableName: convertToPascalCase(tableName),
-          columns,
-        };
-      }
-      throw new Error(`Table not found, ${schema}.${tableName}`);
+      if (!result.hasRows)
+        throw new Error(`Table not found ${schema}.${tableName}`);
+      return {
+        schema,
+        tableName: convertToPascalCase(tableName),
+        columns: mapToColumnInfoList(result.rows),
+      };
     });
   }
   close(): void {
@@ -174,8 +151,9 @@ class MysqlWrapper implements IDatabaseEngine {
     });
   }
   runSingleQuery(query: string, values?: any): Promise<QueryResult> {
+    const querySql = query.replace("\$\d", "?");
     return new Promise((resolve, reject) =>
-      this.client.query({ sql: query, values: values }, (err, rows, fields) => {
+      this.client.query({ sql: querySql, values: values }, (err, rows, fields) => {
         if (err) {
           reject(err);
         }
@@ -187,51 +165,18 @@ class MysqlWrapper implements IDatabaseEngine {
       })
     );
   }
-  getSchemaList(): Promise<string[]> {
-    return this.runSingleQuery(
-      "SELECT T.SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA T"
-    ).then((result) => {
-      if (result.hasRows) {
-        return result.rows?.map((it) => <string>it["SCHEMA_NAME"]);
-      }
-      throw new Error("No schema found.");
-    });
-  }
-  getTableList(schema: string): Promise<string[]> {
-    return this.runSingleQuery(
-      "SELECT T.TABLE_NAME FROM INFORMATION_SCHEMA.TABLES T WHERE T.TABLE_SCHEMA = ?",
-      [schema]
-    ).then((result) => {
-      if (result.hasRows) {
-        return result.rows?.map((it) => <string>it["TABLE_NAME"]);
-      }
-      throw new Error(`No table found in schema ${schema}`);
-    });
-  }
   getTableInfo(schema: string, tableName: string): Promise<TableInfo> {
     return this.runSingleQuery(QUERY_MYSQL_TABLE_INFO, [
       schema,
       tableName,
     ]).then((result) => {
-      if (result.hasRows) {
-        const columns = result.rows.map((it) => ({
-          name: <string>it["COLUMN_NAME"],
-          camelCaseName: convertToCamelCase(<string>it["COLUMN_NAME"]),
-          pascalCaseName: convertToPascalCase(<string>it["COLUMN_NAME"]),
-          defaultValue: <string>it["COLUMN_DEFAULT"],
-          type: getLanguageSpecificTypeDefinition(
-            <string>it["DATA_TYPE"],
-            "java"
-          ),
-          isPrimaryKey: <number>it["IS_PRIMARY_KEY"],
-        }));
-        return {
-          schema,
-          tableName: convertToPascalCase(tableName),
-          columns,
-        };
-      }
-      throw new Error(`Table not found, ${schema}.${tableName}`);
+      if (!result.hasRows)
+        throw new Error(`Table not found ${schema}.${tableName}`);
+      return {
+        schema,
+        tableName: convertToPascalCase(tableName),
+        columns: mapToColumnInfoList(result.rows),
+      };
     });
   }
   close(): void {
@@ -239,14 +184,34 @@ class MysqlWrapper implements IDatabaseEngine {
   }
 }
 
+export type DataSourceOptions = {
+  datasource: DataSource;
+  config: DbBuildOptions;
+};
+
 export function createDatabaseClient(
-  datasource: DataSource,
-  options: DbBuildOptions
+  options: DataSourceOptions
 ): IDatabaseEngine {
-  if (datasource === "postgres") {
-    return new PostgressWrapper(options);
-  } else if (datasource === "mysql") {
-    return new MysqlWrapper(options);
+  if (options.datasource === "postgres") {
+    return new PostgressWrapper(options.config);
+  } else if (options.datasource === "mysql") {
+    return new MysqlWrapper(options.config);
   }
   throw new Error("Unsupported data source type");
+}
+
+function mapToColumnInfoList(rows: any) {
+  const columns: ColumnInfo[] = [];
+
+  for (const iterator of rows) {
+    const column_name = iterator["column_name"] as string;
+    const column_default = iterator["column_default"] as string;
+    const data_type = iterator["data_type"] as string;
+    const is_primary_key = iterator["is_primary_key"] == "1";
+
+    columns.push(
+      new ColumnInfo(column_name, column_default, data_type, is_primary_key)
+    );
+  }
+  return columns;
 }

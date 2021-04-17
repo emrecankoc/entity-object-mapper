@@ -1,13 +1,12 @@
 #!/usr/bin/env ts-node-script
 
-import {
-  DataSourceReverser,
-  installTemplate,
-  getTemplateDirList,
-} from "../src";
+import { createDatabaseClient } from "../src/database-engine";
+import { generate, TemplateConfig } from "../src";
+import { convertToPascalCase, exportFile } from "../src/utility";
 import prompts from "prompts";
 import path from "path";
 import packageJSON from "../package.json";
+import fs from "fs";
 
 const DATA_DIR =
   process.env.APPDATA ||
@@ -22,74 +21,10 @@ const TEMPLATE_DIR = path.join(
   "templates"
 );
 
-const myArgs = process.argv.slice(2);
+questions();
 
-if (myArgs[0]) {
-  switch (myArgs[0]) {
-    case "manage":
-      runManage(myArgs.slice(1));
-      break;
-    case "help":
-      showUsage();
-    default:
-      console.error("use help command to see usage options");
-      break;
-  }
-} else {
-  runQuestion();
-}
-function showUsage() {
-  const output = `ETOOMAP
-  Entity to Object Mapper
-
-Usage Options:
-
-  manage help                     -
-  manage i <git_command>          install templates
-  manage ls                       list installed templates
-  manage update <template_name>   update template
-
-  `;
-  console.info(output);
-}
-
-function runManage(args: string[]) {
-  switch (args[0]) {
-    case "install":
-    case "i":
-      // install template
-      if (!!!args[1]) {
-        console.error("git url required");
-        break;
-      }
-      installTemplate(args[1], TEMPLATE_DIR);
-      break;
-    case "ls":
-      // list templates
-      getTemplateDirList(TEMPLATE_DIR).then((list) => {
-        if (list && list.length > 0) {
-          list.map((x) => console.info(x + "\n"));
-        } else {
-          console.info("No template found");
-        }
-      });
-      break;
-    case "update":
-      if (!!!args[1]) {
-        console.error("template name required");
-        break;
-      }
-      console.error("not implemented");
-      //updateTemplate(TEMPLATE_DIR, args[1]);
-      break;
-    default:
-      console.error("use help command to see usage options");
-      break;
-  }
-}
-
-function runQuestion() {
-  prompts({
+async function questions() {
+  const { datasource } = await prompts({
     type: "select",
     name: "datasource",
     message: "Data source",
@@ -97,126 +32,139 @@ function runQuestion() {
       { title: "Postgres", value: "postgres" },
       { title: "Mysql", value: "mysql" },
     ],
-  })
-    .then((dataSource) => {
-      prompts([
-        {
-          type: "text",
-          name: "host",
-          message: "Host",
-          initial: "localhost",
-        },
-        {
-          type: "number",
-          name: "port",
-          message: "Port",
-          initial: dataSource.datasource === "postgres" ? 5432 : 3306,
-        },
-        {
-          type: "text",
-          name: "database",
-          message: "Database",
-        },
-        {
-          type: "text",
-          name: "user",
-          message: "User",
-          initial: dataSource.datasource === "postgres" ? "postgres" : "root",
-        },
-        {
-          type: "password",
-          name: "password",
-          message: "Password",
-        },
-      ])
-        .then(async (data) => {
-          console.info("connecting to datasource...");
-          const objectReverser = new DataSourceReverser(dataSource.datasource, {
-            host: data.host,
-            port: data.port,
-            user: data.user,
-            password: data.password,
-            database: data.database,
-          });
-          try {
-            const schemaList = await objectReverser.getSchemaList();
-            const schemaSelect = await prompts({
-              type: "select",
-              name: "schema",
-              message: "Schema",
-              choices: schemaList.map((it) => ({ title: it, value: it })),
-            });
+  });
 
-            const tableList = await objectReverser.getTableList(
-              schemaSelect.schema
-            );
-            const tableSelect = await prompts({
-              type: "select",
-              name: "tableName",
-              message: "Table Name",
-              choices: tableList.map((it) => ({ title: it, value: it })),
-            });
-            let dirList = [
-              {
-                title: "default-templates",
-                value: path.resolve(__dirname, "default-templates"),
-              },
-            ];
-            try {
-              const templateDirList = await objectReverser.getTemlateDirList(
-                TEMPLATE_DIR
-              );
-              dirList = templateDirList
-                .map((it) => ({
-                  title: it,
-                  value: path.join(TEMPLATE_DIR, it),
-                }))
-                .concat(dirList);
-            } catch (error) {}
+  const dbOptions = await prompts([
+    {
+      type: "text",
+      name: "host",
+      message: "Host",
+      initial: "localhost",
+    },
+    {
+      type: "number",
+      name: "port",
+      message: "Port",
+      initial: datasource === "postgres" ? 5432 : 3306,
+    },
+    {
+      type: "text",
+      name: "database",
+      message: "Database",
+    },
+    {
+      type: "text",
+      name: "user",
+      message: "User",
+      initial: datasource === "postgres" ? "postgres" : "root",
+    },
+    {
+      type: "password",
+      name: "password",
+      message: "Password",
+    },
+  ]);
 
-            const directorySelection = await prompts({
-              type: "select",
-              name: "templatedir",
-              message: "Template set",
-              choices: dirList,
-            });
+  console.info("connecting to datasource...");
+  const db = createDatabaseClient({
+    datasource: datasource,
+    config: dbOptions,
+  });
+  try {
+    const schemaList = await db.runSingleQuery(
+      "SELECT T.schema_name FROM INFORMATION_SCHEMA.SCHEMATA T"
+    );
+    const { schema } = await prompts({
+      type: "select",
+      name: "schema",
+      message: "Schema",
+      choices: schemaList.rows.map((it) => ({
+        title: it["schema_name"],
+        value: it["schema_name"],
+      })),
+    });
 
-            const templateList = await objectReverser.getTemplateList(
-              directorySelection.templatedir
-            );
-            const templateSelect = await prompts({
-              type: "select",
-              name: "templateName",
-              message: "Template Name",
-              choices: templateList.map((it) => ({
-                title: it.name,
-                value: it.name,
-              })),
-            });
+    const tableList = await db.runSingleQuery(
+      "SELECT T.table_name FROM INFORMATION_SCHEMA.TABLES T WHERE T.TABLE_SCHEMA = $1",
+      [schema]
+    );
+    const { tableName } = await prompts({
+      type: "select",
+      name: "tableName",
+      message: "Table Name",
+      choices: tableList.rows.map((it) => ({
+        title: it["table_name"],
+        value: it["table_name"],
+      })),
+    });
 
-            const packageName = await prompts({
-              type: "text",
-              name: "packageName",
-              message: "Package name",
-            });
+    const dirList = [
+      {
+        title: "default-templates",
+        value: path.resolve(__dirname, "default-templates"),
+      },
+    ];
 
-            await objectReverser.generateAndExport(
-              {
-                schema: schemaSelect.schema,
-                table: tableSelect.tableName,
-                templateDir: directorySelection.templatedir,
-                templateName: templateSelect.templateName,
-                packageName: packageName.packageName,
-              },
-              process.cwd()
-            );
-            console.info("execution done...");
-          } finally {
-            console.info("closing connection...");
-            objectReverser.close();
-          }
+    try {
+      const readDirResult = await fs.promises.readdir(TEMPLATE_DIR);
+
+      for (const item of readDirResult) {
+        const dirPath = path.join(TEMPLATE_DIR, item);
+        const isDir = fs.lstatSync(dirPath);
+        if (isDir.isDirectory()) {
+          dirList.push({ title: item, value: dirPath });
+        }
+      }
+    } catch (error) {}
+
+    const { templatedir } = await prompts({
+      type: "select",
+      name: "templatedir",
+      message: "Template set",
+      choices: dirList,
+    });
+
+    const templateConfig: TemplateConfig[] = JSON.parse(
+      fs.readFileSync(path.join(templatedir, "config.json")).toString()
+    ).templates;
+
+    const { templ } = await prompts({
+      type: "select",
+      name: "templ",
+      message: "Template Name",
+      choices: templateConfig.map((it) => ({
+        title: it.name,
+        value: it.name,
+      })),
+    });
+
+    const { packageName } = await prompts({
+      type: "text",
+      name: "packageName",
+      message: "Package name",
+    });
+
+    const { templateFile, language } = templateConfig.find(
+      (it) => it.name == templ
+    ) || { language: "", templateFile: "" };
+
+    const templatePath = path.join(templatedir, templateFile);
+    const outputPath = path.join(
+      process.cwd(),
+      `${convertToPascalCase(tableName)}.${language}`
+    );
+    await db
+      .getTableInfo(schema, tableName)
+      .then((tableInfo) =>
+        generate({ templatePath: templatePath }, tableInfo, language, {
+          packageName: packageName,
         })
-        .catch((err) => console.error(err));
-    })
-    .catch((err) => console.error(err));
+      )
+      .then((result) => exportFile(outputPath, result))
+      .then(() => console.info("done..."));
+  } catch (err) {
+    console.error(err);
+  } finally {
+    db.close();
+  }
 }

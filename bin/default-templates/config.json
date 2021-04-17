@@ -1,9 +1,10 @@
-[
-  {
-    "name": "simple-java",
-    "language": "java",
-    "extension": "java",
-    "inputType": "TableInfo",
-    "templateFile": "simple-java.ejs"
-  }
-]
+{
+  "version": "1",
+  "templates": [
+    {
+      "name": "simple-java",
+      "language": "java",
+      "templateFile": "simple-java.ejs"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+package <%= packageName %>;
+
+import javax.persistence.*;
+
+@Entity
+public class <%= tableName %> implements java.io.Serializable {
+	private static final long serialVersionUID = 1L;
+<% columns.forEach(column => { %>
+<% if(column.isPrimaryKey){ -%>
+	<%= "@Id" %>
+<% };-%>
+	@Column(name="<%= column.name %>")
+	private <%= column.type %> <%= column.camelCaseName %>;
+<% }); %>
+<% columns.forEach(column => { %>
+	public <%= column.type %> get<%= column.pascalCaseName %>() {
+      return this.<%= column.camelCaseName %>;
+    }
+  
+	public void set<%= column.pascalCaseName %>(<%= column.type %> <%= column.camelCaseName %>) {
+		this.<%= column.camelCaseName %> = <%= column.camelCaseName %>;
+    }
+<% }); %>
+}
