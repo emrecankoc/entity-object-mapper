@@ -201,11 +201,13 @@ function runQuestion() {
             });
 
             await objectReverser.generateAndExport(
-              schemaSelect.schema,
-              tableSelect.tableName,
-              directorySelection.templatedir,
-              templateSelect.templateName,
-              packageName.packageName,
+              {
+                schema: schemaSelect.schema,
+                table: tableSelect.tableName,
+                templateDir: directorySelection.templatedir,
+                templateName: templateSelect.templateName,
+                packageName: packageName.packageName,
+              },
               process.cwd()
             );
             console.info("execution done...");
