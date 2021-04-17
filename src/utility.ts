@@ -1,7 +1,7 @@
 import util from "util";
 import { exec } from "child_process";
 import fs from "fs";
-import path from "path";
+
 const execPromised = util.promisify(exec);
 
 export function convertToCamelCase(str: string): string {
@@ -62,18 +62,12 @@ export function getLanguageSpecificTypeDefinition(
   }
 }
 
-export class GitWrapper {
-  checkGitExist() {
-    return execPromised("git --version").then((res) =>
-      console.info("git cli found")
-    );
-  }
-  clone(url: string, intoDir: string) {
-    return execPromised(`git clone ${escape(url)} ${intoDir}`);
-  }
-  pull(directory: string) {
-    return execPromised(`git -C ${escape(directory)} pull`);
-  }
+export function gitClone(url: string, directory: string) {
+  return execPromised(`git clone ${escape(url)} ${directory}`);
+}
+
+export function gitPull(directory: string) {
+  return execPromised(`git -C ${escape(directory)} pull`);
 }
 
 export function accessOrCreateDir(directory: string): Promise<any> {

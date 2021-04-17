@@ -9,7 +9,7 @@ import {
   ITemplateEngine,
   ConfigType,
 } from "./template-engine";
-import { accessOrCreateDir, GitWrapper } from "./utility";
+import { accessOrCreateDir, gitClone, gitPull } from "./utility";
 import path from "path";
 
 export type DataSource = dbDataSource;
@@ -54,6 +54,24 @@ export class DataSourceReverser {
       )
       .catch((ex) => console.error(ex));
   }
+  generate(
+    schema: string,
+    table: string,
+    templateDir: string,
+    templateName: string,
+    packageName: string
+  ) {
+    return this.dbEngine
+      .getTableInfo(schema, table)
+      .then((table) =>
+        this.templateEngine
+          .getTemplateBody(templateDir, templateName)
+          .then((body) =>
+            this.templateEngine.generate(body, { table, packageName })
+          )
+      )
+      .catch((ex) => console.error(ex));
+  }
   close() {
     this.dbEngine.close();
   }
@@ -63,9 +81,8 @@ export function installTemplate(
   gitUrl: string,
   templateDir: string
 ): Promise<void> {
-  const gitClient = new GitWrapper();
   return accessOrCreateDir(templateDir)
-    .then(() => gitClient.clone(gitUrl, templateDir))
+    .then(() => gitClone(gitUrl, templateDir))
     .then((res) => console.info(res.stdout));
 }
 
@@ -77,6 +94,5 @@ export function getTemplateDirList(maindir: string): Promise<string[]> {
 }
 
 export function updateTemplate(templateDir: string, templateName: string) {
-  const gitClient = new GitWrapper();
-  return gitClient.pull(path.join(templateDir, templateName));
+  return gitPull(path.join(templateDir, templateName)).then((res) => true);
 }

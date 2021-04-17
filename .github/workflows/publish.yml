@@ -1,7 +1,9 @@
-name: Node.js Package
+name: publish
+
 on:
-  release:
-    types: [created]
+  push:
+    branches:
+      - master
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,11 +19,9 @@ jobs:
         git config --global user.name ${{ github.actor }}
         git config --global user.email ${{ github.actor }}@users.noreply.github.com
         git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-    - run: npm version ${GITHUB_REF#refs/tags/v} --no-git-tag-version
+    - run: npm version patch
     - run: npm publish
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGE_REGISTRY_TOKEN }}
     - run: |
-        git add -A
-        git commit -m "version update"
         git push
