@@ -20,35 +20,57 @@ yarn add entity-object-mapper
 Example usages under example folder
 
 ```ts
-const entityMapper = require("entity-object-mapper");
+const { generateFromDataSource } = require("entity-object-mapper");
 
-const objectReverser = new entityMapper.DataSourceReverser("postgres", {
-  host: "localhost",
-  port: "5432",
-  user: "postgres",
-  password: "password",
-  database: "db",
-});
-// generate and export directly
-objectReverser.generateAndExport(
-  {
-    schema: schema, // schema name
-    table: tableName, // table name
-    templateDir: templatedir, // template directory
-    templateName: templateName, // template name
-    packageName: packageName,
+const generatedCode = generateFromDataSource({
+  databaseOptions: {
+    config: {
+      database: "db",
+      host: "localhost",
+      port: 5432,
+      user: "user",
+      password: "password",
+    },
+    datasource: "postgres",
   },
-  process.cwd() // directory to export
-);
-
-// or get as string
-objectReverser.generate({
-  schema: schema, // schema name
-  table: tableName, // table name
-  templateDir: templatedir, // template directory
-  templateName: templateName, // template name
-  packageName: packageName,
+  language: "java",
+  schema: "schema",
+  table: "table",
+  templateOptions: {
+    templatePath: "/TEMPLATE_DIRECTORY",
+    templater: "ejs",
+  },
+  extras: {
+    packageName: "package_name",
+  },
 });
+
+// or export directly
+generateFromDataSourceAndExport(
+  {
+    databaseOptions: {
+      config: {
+        database: "db",
+        host: "localhost",
+        port: 5432,
+        user: "user",
+        password: "password",
+      },
+      datasource: "postgres",
+    },
+    language: "java",
+    schema: "schema",
+    table: "table",
+    templateOptions: {
+      templatePath: "/TEMPLATE_DIRECTORY",
+      templater: "ejs",
+    },
+    extras: {
+      packageName: "package_name",
+    },
+  },
+  "/EXPORT_DIRECTORY"
+);
 ```
 
 ## CLI

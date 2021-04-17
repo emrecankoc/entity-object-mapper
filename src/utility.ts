@@ -1,8 +1,4 @@
-import util from "util";
-import { exec } from "child_process";
 import fs from "fs";
-
-const execPromised = util.promisify(exec);
 
 export function convertToCamelCase(str: string): string {
   const result = convertToPascalCase(str);
@@ -16,62 +12,16 @@ export function convertToPascalCase(str: string): string {
   );
 }
 
-export function getLanguageSpecificTypeDefinition(
-  typeCode: string,
-  language: "java" | "ts"
-) {
-  switch (typeCode) {
-    case "character":
-    case "national character":
-    case "character varying":
-    case "national character varying":
-    case "text":
-    case "money":
-      return "String";
-    case "bytea":
-      return "byte[]";
-    case "smallint":
-    case "smallserial":
-    case "integer":
-    case "serial":
-      return "int";
-    case "bigint":
-    case "bigserial":
-    case "oid":
-      return "long";
-    case "real":
-      return "float";
-    case "double precision":
-      return "double";
-    case "numeric":
-    case "decimal":
-      return "java.math.BigDecimal";
-    case "date":
-      return "java.sql.Date";
-    case "time with time zone":
-    case "time without time zone":
-      return "java.sql.Time";
-    case "timestamp without time zone":
-    case "timestamp with time zone":
-      return "java.sql.Timestamp";
-    case "boolean":
-    case "bit":
-      return "boolean";
-    default:
-      return "string";
+export function accessDirSafe(directory: string): Promise<any> {
+  if (!fs.existsSync(directory)) {
+    return fs.promises.mkdir(directory, { recursive: true });
   }
+  return Promise.resolve();
 }
 
-export function gitClone(url: string, directory: string) {
-  return execPromised(`git clone ${escape(url)} ${directory}`);
-}
-
-export function gitPull(directory: string) {
-  return execPromised(`git -C ${escape(directory)} pull`);
-}
-
-export function accessOrCreateDir(directory: string): Promise<any> {
-  return fs.promises
-    .access(directory)
-    .catch(() => fs.promises.mkdir(directory, { recursive: true }));
+export function exportFile(filePath: string, body: string) {
+  return fs.promises.writeFile(filePath, body, {
+    flag: "w",
+    encoding: "utf-8",
+  });
 }

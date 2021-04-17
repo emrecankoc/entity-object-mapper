@@ -1,96 +1,117 @@
 import {
   createDatabaseClient,
-  IDatabaseEngine,
-  DataSource as dbDataSource,
-  DbBuildOptions,
+  DataSourceOptions,
+  TableInfo,
 } from "./database-engine";
-import {
-  createTemplateEngine,
-  ITemplateEngine,
-  ConfigType,
-} from "./template-engine";
-import { accessOrCreateDir, gitClone, gitPull } from "./utility";
-import path from "path";
+import { createTemplate, TemplateOptions } from "./template-engine";
+import { convertToPascalCase, exportFile } from "./utility";
 
-export type DataSource = dbDataSource;
-
-export type GenerateInput = {
-  schema: string;
-  table: string;
-  templateDir: string;
-  templateName: string;
-  packageName: string;
+export type TemplateConfig = {
+  name: string;
+  language: string;
+  templateFile: string;
 };
 
-export class DataSourceReverser {
-  dbEngine: IDatabaseEngine;
-  templateEngine: ITemplateEngine;
+export type DataSourceGenerateInput = {
+  databaseOptions: DataSourceOptions;
+  templateOptions: TemplateOptions;
+  schema: string;
+  table: string;
+  language: string;
+  extras?: any;
+};
 
-  constructor(dataSource: DataSource, dbOptions: DbBuildOptions) {
-    this.dbEngine = createDatabaseClient(dataSource, dbOptions);
-    this.templateEngine = createTemplateEngine();
-  }
-  getSchemaList(): Promise<string[]> {
-    return this.dbEngine.getSchemaList();
-  }
-  getTableList(schema: string): Promise<string[]> {
-    return this.dbEngine.getTableList(schema);
-  }
-  getTemlateDirList(appdata: string): Promise<string[]> {
-    return this.templateEngine.getTemplateDirList(appdata);
-  }
-  getTemplateList(templateDir: string): Promise<ConfigType[]> {
-    return this.templateEngine.getTemplateConfig(templateDir);
-  }
-  generateAndExport(input: GenerateInput, outputDir: string): Promise<void> {
-    return this.dbEngine
-      .getTableInfo(input.schema, input.table)
-      .then((res) =>
-        this.templateEngine.generateAndExport(
-          input.templateDir,
-          input.templateName,
-          { ...res, packageName: input.packageName },
-          { directory: outputDir, fileName: res.tableName }
-        )
-      )
-      .catch((ex) => console.error(ex));
-  }
-  generate(input: GenerateInput) {
-    return this.dbEngine
-      .getTableInfo(input.schema, input.table)
-      .then((table) =>
-        this.templateEngine
-          .getTemplateBody(input.templateDir, input.templateName)
-          .then((body) =>
-            this.templateEngine.generate(body, {
-              ...table,
-              packageName: input.packageName,
-            })
-          )
-      )
-      .catch((ex) => console.error(ex));
-  }
-  close() {
-    this.dbEngine.close();
-  }
-}
+export function generate(
+  templateOptions: TemplateOptions,
+  tableInfo: TableInfo,
+  language: string,
+  extras?: any
+) {
+  const tableData: TableInfo = {
+    tableName: convertToPascalCase(tableInfo.tableName),
+    schema: tableInfo.schema,
+    columns: tableInfo.columns?.map((iter) => ({
+      ...iter,
+      type: entityTypeResolver(iter.type, language),
+    })),
+  };
 
-export function installTemplate(
-  gitUrl: string,
-  templateDir: string
-): Promise<void> {
-  return accessOrCreateDir(templateDir)
-    .then(() => gitClone(gitUrl, templateDir))
-    .then((res) => console.info(res.stdout));
-}
-
-export function getTemplateDirList(maindir: string): Promise<string[]> {
-  const engine = createTemplateEngine();
-  return accessOrCreateDir(maindir).then(() =>
-    engine.getTemplateDirList(maindir)
+  return createTemplate(templateOptions).then((template) =>
+    template({ ...tableData, ...extras })
   );
 }
 
-export function updateTemplate(templateDir: string, templateName: string) {
-  return gitPull(path.join(templateDir, templateName)).then((res) => true);
+export function generateFromDataSource(
+  input: DataSourceGenerateInput
+): Promise<string> {
+  const {
+    databaseOptions,
+    templateOptions,
+    schema,
+    table,
+    extras,
+    language,
+  } = input;
+  const db = createDatabaseClient(databaseOptions);
+  return db
+    .getTableInfo(schema, table)
+    .then((tableInfo) =>
+      generate(templateOptions, tableInfo, language, extras)
+    );
+}
+
+export function generateFromDataSourceAndExport(
+  input: DataSourceGenerateInput,
+  exportPath: string
+) {
+  return generateFromDataSource(input).then((result) =>
+    exportFile(exportPath, result)
+  );
+}
+
+function entityTypeResolver(typeCode: string, language: string) {
+  if (language === "java") {
+    switch (typeCode) {
+      case "character":
+      case "national character":
+      case "character varying":
+      case "national character varying":
+      case "text":
+      case "money":
+        return "String";
+      case "bytea":
+        return "byte[]";
+      case "smallint":
+      case "smallserial":
+      case "integer":
+      case "serial":
+        return "int";
+      case "bigint":
+      case "bigserial":
+      case "oid":
+        return "long";
+      case "real":
+        return "float";
+      case "double precision":
+        return "double";
+      case "numeric":
+      case "decimal":
+        return "java.math.BigDecimal";
+      case "date":
+        return "java.sql.Date";
+      case "time with time zone":
+      case "time without time zone":
+        return "java.sql.Time";
+      case "timestamp without time zone":
+      case "timestamp with time zone":
+        return "java.sql.Timestamp";
+      case "boolean":
+      case "bit":
+        return "boolean";
+      default:
+        return "string";
+    }
+  } else {
+    throw new Error("Unkown language specified");
+  }
 }
