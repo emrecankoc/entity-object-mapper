@@ -14,6 +14,14 @@ import path from "path";
 
 export type DataSource = dbDataSource;
 
+export type GenerateInput = {
+  schema: string;
+  table: string;
+  templateDir: string;
+  templateName: string;
+  packageName: string;
+};
+
 export class DataSourceReverser {
   dbEngine: IDatabaseEngine;
   templateEngine: ITemplateEngine;
@@ -34,40 +42,30 @@ export class DataSourceReverser {
   getTemplateList(templateDir: string): Promise<ConfigType[]> {
     return this.templateEngine.getTemplateConfig(templateDir);
   }
-  generateAndExport(
-    schema: string,
-    table: string,
-    templateDir: string,
-    templateName: string,
-    packageName: string,
-    outputDir: string
-  ): Promise<void> {
+  generateAndExport(input: GenerateInput, outputDir: string): Promise<void> {
     return this.dbEngine
-      .getTableInfo(schema, table)
+      .getTableInfo(input.schema, input.table)
       .then((res) =>
         this.templateEngine.generateAndExport(
-          templateDir,
-          templateName,
-          { ...res, packageName },
+          input.templateDir,
+          input.templateName,
+          { ...res, packageName: input.packageName },
           { directory: outputDir, fileName: res.tableName }
         )
       )
       .catch((ex) => console.error(ex));
   }
-  generate(
-    schema: string,
-    table: string,
-    templateDir: string,
-    templateName: string,
-    packageName: string
-  ) {
+  generate(input: GenerateInput) {
     return this.dbEngine
-      .getTableInfo(schema, table)
+      .getTableInfo(input.schema, input.table)
       .then((table) =>
         this.templateEngine
-          .getTemplateBody(templateDir, templateName)
+          .getTemplateBody(input.templateDir, input.templateName)
           .then((body) =>
-            this.templateEngine.generate(body, { table, packageName })
+            this.templateEngine.generate(body, {
+              ...table,
+              packageName: input.packageName,
+            })
           )
       )
       .catch((ex) => console.error(ex));
